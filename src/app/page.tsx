@@ -1,12 +1,15 @@
 'use client';
 import { useState } from 'react';
-import { AudioPlayer, MessageDisplay, RecordButton } from '@/components';
+import { MessageDisplay, RecordButton } from '@/components';
 
 const Home = () => {
   const [messages, setMessages] = useState<{ user: string; ai: string }[]>([]);
-  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [aiTyping, setAiTyping] = useState(false);
 
   const handleVoiceProcessing = async (audio: Blob) => {
+    setLoading(true);
+    setAiTyping(true);
     const formData = new FormData();
     formData.append('audio', audio, 'recorded_audio.wav');
 
@@ -25,13 +28,25 @@ const Home = () => {
 
       const transcription = await transcriptionResponse.json();
 
+      const userMessage = transcription.text;
+
+      if (!userMessage) {
+        alert('No transcription detected. Please try again.');
+        setLoading(false);
+        setAiTyping(false);
+        return;
+      }
+
+      // Add user's message to chat
+      setMessages((prev) => [...prev, { user: userMessage, ai: '' }]);
+
       // Send the transcribed text to the chat API
       const aiResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: transcription.text }),
+        body: JSON.stringify({ message: userMessage }),
       });
 
       const aiText = await aiResponse.json();
@@ -47,13 +62,29 @@ const Home = () => {
 
       const { audio } = await voiceResponse.json();
 
-      setMessages((prev) => [
-        ...prev,
-        { user: transcription.text, ai: aiText },
-      ]);
-      setAudioSrc(audio);
+      const audioPlayer = new Audio(audio);
+      audioPlayer.play(); // Automatically play the audio
+
+      // Animated typing effect for AI response
+      let displayedText = '';
+      const typingInterval = setInterval(() => {
+        if (displayedText.length < aiText.length) {
+          displayedText += aiText[displayedText.length];
+          setMessages((prev) => {
+            const updatedMessages = [...prev];
+            updatedMessages[updatedMessages.length - 1].ai = displayedText;
+            return updatedMessages;
+          });
+        } else {
+          clearInterval(typingInterval);
+          setAiTyping(false);
+        }
+      }, 50); // Typing speed (50ms per character)
+      setLoading(false);
     } catch (error) {
       console.error('Error processing voice:', error);
+      setLoading(false);
+      setAiTyping(false);
     }
   };
 
@@ -62,9 +93,8 @@ const Home = () => {
       <h1 className="text-2xl font-bold text-accent text-center mb-6">
         Voice ChatBot
       </h1>
-      <RecordButton onStop={handleVoiceProcessing} />
-      <MessageDisplay messages={messages} />
-      {audioSrc && <AudioPlayer src={audioSrc} />}
+      <MessageDisplay messages={messages} isTyping={aiTyping} />
+      <RecordButton onStop={handleVoiceProcessing} disabled={loading} />
     </div>
   );
 };
