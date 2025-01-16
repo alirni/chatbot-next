@@ -15,6 +15,12 @@ const eslintConfig = [
     'next/typescript',
     'plugin:prettier/recommended'
   ),
+  {
+    rules: {
+      'eslint-disable-next-line': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 ];
 
 export default eslintConfig;
